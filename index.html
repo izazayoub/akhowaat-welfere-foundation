@@ -219,378 +219,373 @@
 <div id="alertBox" class="alert"></div>
 
 <script>
-    // ========== FIREBASE CONFIG ==========
-    const firebaseConfig = {
-        apiKey: "AIzaSyB42G8ho2hjuv9H3_zZLI-wjDJXzVHx250",
-        authDomain: "akhowaat-foundation.firebaseapp.com",
-        databaseURL: "https://akhowaat-foundation-default-rtdb.asia-southeast1.firebasedatabase.app",
-        projectId: "akhowaat-foundation",
-        storageBucket: "akhowaat-foundation.firebasestorage.app",
-        messagingSenderId: "656224766196",
-        appId: "1:656224766196:web:80949415f5e2faf31b36a1"
-    };
-    
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const database = firebase.database();
-    
-    let currentUser = null;
-    let currentCouncil = null;
-    
-    // DATA
-    let displayNames = { chairman: 'Chairman', council1: 'Council 1', council2: 'Council 2', council3: 'Council 3', council4: 'Council 4' };
-    let chairmanData = { balance: 50000, history: [{ date: new Date().toLocaleString(), type: 'Initial', amount: 50000, desc: 'Starting balance' }] };
-    let councilsData = { council1: { balance: 0, history: [] }, council2: { balance: 0, history: [] }, council3: { balance: 0, history: [] }, council4: { balance: 0, history: [] } };
-    let credentials = { chairman: 'chairman123', council1: 'council123', council2: 'council123', council3: 'council123', council4: 'council123' };
-    
-    // ========== FIREBASE FUNCTIONS ==========
-    function loadFromFirebase() {
-        database.ref('chairmanData').once('value').then((snap) => {
-            if(snap.exists()) chairmanData = snap.val();
-            else database.ref('chairmanData').set(chairmanData);
-            if(currentUser === 'chairman') updateChairmanUI();
-        });
-        database.ref('councilsData').once('value').then((snap) => {
-            if(snap.exists()) councilsData = snap.val();
-            else database.ref('councilsData').set(councilsData);
-            if(currentUser === 'chairman') updateChairmanUI();
-            else if(currentCouncil) updateCouncilUI();
-        });
-        database.ref('displayNames').once('value').then((snap) => {
-            if(snap.exists()) displayNames = snap.val();
-            else database.ref('displayNames').set(displayNames);
-        });
-        database.ref('credentials').once('value').then((snap) => {
-            if(snap.exists()) credentials = snap.val();
-            else database.ref('credentials').set(credentials);
-        });
-        document.getElementById('syncStatus').innerHTML = '✅ Live Sync';
-        document.getElementById('syncStatus').style.background = '#10b981';
-    }
-    
-    function saveChairman() { database.ref('chairmanData').set(chairmanData); }
-    function saveCouncils() { database.ref('councilsData').set(councilsData); }
-    function saveDisplayNames() { database.ref('displayNames').set(displayNames); }
-    function saveCredentials() { database.ref('credentials').set(credentials); }
-    
-    function setupRealtimeListeners() {
-        database.ref('chairmanData').on('value', (snap) => {
-            if(snap.exists()) { chairmanData = snap.val(); if(currentUser === 'chairman') updateChairmanUI(); }
-        });
-        database.ref('councilsData').on('value', (snap) => {
-            if(snap.exists()) { councilsData = snap.val(); if(currentUser === 'chairman') updateChairmanUI(); else if(currentCouncil) updateCouncilUI(); }
-        });
-        database.ref('displayNames').on('value', (snap) => {
-            if(snap.exists()) { displayNames = snap.val(); if(currentCouncil) document.getElementById('councilName').innerText = displayNames[currentCouncil]; }
-        });
-    }
-    
-    // ========== UI FUNCTIONS ==========
-    function showAlert(msg, type) {
-        let d = document.getElementById('alertBox');
-        d.className = 'alert alert-' + type;
-        d.innerHTML = msg;
-        d.style.display = 'block';
-        setTimeout(() => d.style.display = 'none', 3000);
-    }
-    
-    function updateChairmanUI() {
-        document.getElementById('chairmanBalance').innerHTML = 'PKR ' + (chairmanData.balance || 0).toLocaleString();
-        let td=0, tt=0, te=0;
-        if (chairmanData.history) {
-            for(let i=0; i<chairmanData.history.length; i++) {
-                let h = chairmanData.history[i];
-                if(h.type === 'Deposit') td += h.amount;
-                else if(h.type === 'Transfer') tt += h.amount;
-                else if(h.type === 'Expense') te += h.amount;
-            }
+    // Wait for Firebase to be ready
+    document.addEventListener('DOMContentLoaded', function() {
+        // Check if Firebase is available
+        if (typeof firebase !== 'undefined' && firebase.apps.length === 0) {
+            // Firebase config
+            const firebaseConfig = {
+                apiKey: "AIzaSyB42G8ho2hjuv9H3_zZLI-wjDJXzVHx250",
+                authDomain: "akhowaat-foundation.firebaseapp.com",
+                databaseURL: "https://akhowaat-foundation-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "akhowaat-foundation",
+                storageBucket: "akhowaat-foundation.firebasestorage.app",
+                messagingSenderId: "656224766196",
+                appId: "1:656224766196:web:80949415f5e2faf31b36a1"
+            };
+            firebase.initializeApp(firebaseConfig);
         }
-        document.getElementById('totalDeposit').innerHTML = 'PKR ' + td.toLocaleString();
-        document.getElementById('totalTransfer').innerHTML = 'PKR ' + tt.toLocaleString();
-        document.getElementById('totalExpense').innerHTML = 'PKR ' + te.toLocaleString();
-        document.getElementById('statDeposit').innerHTML = 'PKR ' + td.toLocaleString();
-        document.getElementById('statTransfer').innerHTML = 'PKR ' + tt.toLocaleString();
-        document.getElementById('statExpense').innerHTML = 'PKR ' + te.toLocaleString();
-        document.getElementById('statBalance').innerHTML = 'PKR ' + (chairmanData.balance || 0).toLocaleString();
         
-        let html = '';
-        if (chairmanData.history && chairmanData.history.length > 0) {
-            for(let i=0; i<chairmanData.history.length && i<20; i++) {
-                let h = chairmanData.history[i];
-                let isPos = h.amount > 0;
-                html += `<div class="transaction-item"><div class="transaction-left"><div class="transaction-icon">${isPos ? '💰' : (h.type === 'Transfer' ? '🔄' : '📝')}</div><div class="transaction-info"><div class="transaction-type">${h.type}</div><div class="transaction-date">${h.date}</div></div></div><div class="transaction-amount ${isPos ? 'amount-positive' : 'amount-negative'}">${isPos ? '+' : '-'} PKR ${Math.abs(h.amount).toLocaleString()}</div></div>`;
-            }
-        } else {
-            html = '<div class="empty-state">No transactions yet</div>';
-        }
-        document.getElementById('chairmanHistory').innerHTML = html;
-    }
+        initApp();
+    });
     
-    function updateCouncilUI() {
-        let data = councilsData[currentCouncil] || { balance: 0, history: [] };
-        document.getElementById('councilBalance').innerHTML = 'PKR ' + (data.balance || 0).toLocaleString();
-        document.getElementById('councilName').innerHTML = displayNames[currentCouncil] || currentCouncil;
-        let tr=0, tf=0;
-        if (data.history) {
-            for(let i=0; i<data.history.length; i++) {
-                let h = data.history[i];
-                if(h.type === 'Received' || h.type === 'Distribution') {
-                    tr += h.amount;
-                    tf += (h.families || 0);
+    function initApp() {
+        const database = firebase.database();
+        
+        let currentUser = null;
+        let currentCouncil = null;
+        
+        let displayNames = { chairman: 'Chairman', council1: 'Council 1', council2: 'Council 2', council3: 'Council 3', council4: 'Council 4' };
+        let chairmanData = { balance: 50000, history: [{ date: new Date().toLocaleString(), type: 'Initial', amount: 50000, desc: 'Starting balance' }] };
+        let councilsData = { council1: { balance: 0, history: [] }, council2: { balance: 0, history: [] }, council3: { balance: 0, history: [] }, council4: { balance: 0, history: [] } };
+        let credentials = { chairman: 'chairman123', council1: 'council123', council2: 'council123', council3: 'council123', council4: 'council123' };
+        
+        // Load from Firebase
+        function loadFromFirebase() {
+            database.ref('chairmanData').once('value').then((snap) => {
+                if(snap.exists()) chairmanData = snap.val();
+                else database.ref('chairmanData').set(chairmanData);
+                if(currentUser === 'chairman') updateChairmanUI();
+            });
+            database.ref('councilsData').once('value').then((snap) => {
+                if(snap.exists()) councilsData = snap.val();
+                else database.ref('councilsData').set(councilsData);
+                if(currentUser === 'chairman') updateChairmanUI();
+                else if(currentCouncil) updateCouncilUI();
+            });
+            database.ref('displayNames').once('value').then((snap) => {
+                if(snap.exists()) displayNames = snap.val();
+                else database.ref('displayNames').set(displayNames);
+            });
+            database.ref('credentials').once('value').then((snap) => {
+                if(snap.exists()) credentials = snap.val();
+                else database.ref('credentials').set(credentials);
+            });
+            document.getElementById('syncStatus').innerHTML = '✅ Live Sync';
+            document.getElementById('syncStatus').style.background = '#10b981';
+        }
+        
+        function saveChairman() { database.ref('chairmanData').set(chairmanData); }
+        function saveCouncils() { database.ref('councilsData').set(councilsData); }
+        function saveDisplayNames() { database.ref('displayNames').set(displayNames); }
+        function saveCredentials() { database.ref('credentials').set(credentials); }
+        
+        function setupRealtimeListeners() {
+            database.ref('chairmanData').on('value', (snap) => {
+                if(snap.exists()) { chairmanData = snap.val(); if(currentUser === 'chairman') updateChairmanUI(); }
+            });
+            database.ref('councilsData').on('value', (snap) => {
+                if(snap.exists()) { councilsData = snap.val(); if(currentUser === 'chairman') updateChairmanUI(); else if(currentCouncil) updateCouncilUI(); }
+            });
+            database.ref('displayNames').on('value', (snap) => {
+                if(snap.exists()) { displayNames = snap.val(); if(currentCouncil) document.getElementById('councilName').innerText = displayNames[currentCouncil]; }
+            });
+        }
+        
+        function showAlert(msg, type) {
+            let d = document.getElementById('alertBox');
+            d.className = 'alert alert-' + type;
+            d.innerHTML = msg;
+            d.style.display = 'block';
+            setTimeout(() => d.style.display = 'none', 3000);
+        }
+        
+        function updateChairmanUI() {
+            document.getElementById('chairmanBalance').innerHTML = 'PKR ' + (chairmanData.balance || 0).toLocaleString();
+            let td=0, tt=0, te=0;
+            if (chairmanData.history) {
+                for(let h of chairmanData.history) {
+                    if(h.type === 'Deposit') td += h.amount;
+                    else if(h.type === 'Transfer') tt += h.amount;
+                    else if(h.type === 'Expense') te += h.amount;
                 }
             }
-        }
-        document.getElementById('totalReceived').innerHTML = 'PKR ' + tr.toLocaleString();
-        document.getElementById('totalFamilies').innerHTML = tf;
-        document.getElementById('totalDistributions').innerHTML = data.history ? data.history.length : 0;
-        document.getElementById('cStatReceived').innerHTML = 'PKR ' + tr.toLocaleString();
-        document.getElementById('cStatFamilies').innerHTML = tf;
-        document.getElementById('cStatTransactions').innerHTML = data.history ? data.history.length : 0;
-        document.getElementById('cStatBalance').innerHTML = 'PKR ' + (data.balance || 0).toLocaleString();
-        
-        let html = '';
-        if (data.history && data.history.length > 0) {
-            for(let i=0; i<data.history.length && i<20; i++) {
-                let h = data.history[i];
-                html += `<div class="transaction-item"><div class="transaction-left"><div class="transaction-icon">🤝</div><div class="transaction-info"><div class="transaction-type">${h.type}</div><div class="transaction-date">${h.date}</div>${h.families ? `<div style="font-size:10px;color:#888;">${h.families} families</div>` : ''}</div></div><div class="transaction-amount amount-negative">-PKR ${h.amount.toLocaleString()}</div></div>`;
-            }
-        } else {
-            html = '<div class="empty-state">No distributions yet</div>';
-        }
-        document.getElementById('councilHistory').innerHTML = html;
-    }
-    
-    // ========== ACTIONS ==========
-    function deposit() {
-        let a = parseFloat(document.getElementById('depositAmount').value);
-        let d = document.getElementById('depositDesc').value || 'Manual deposit';
-        if(isNaN(a) || a <= 0) { showAlert('Enter valid amount', 'danger'); return; }
-        chairmanData.balance = (chairmanData.balance || 0) + a;
-        if (!chairmanData.history) chairmanData.history = [];
-        chairmanData.history.unshift({ date: new Date().toLocaleString(), type: 'Deposit', amount: a, desc: d });
-        saveChairman();
-        updateChairmanUI();
-        document.getElementById('closeDeposit').click();
-        document.getElementById('depositAmount').value = '';
-        document.getElementById('depositDesc').value = '';
-        showAlert('PKR ' + a.toLocaleString() + ' deposited!', 'success');
-    }
-    
-    function transfer() {
-        let c = document.getElementById('transferCouncil').value;
-        let a = parseFloat(document.getElementById('transferAmount').value);
-        let d = document.getElementById('transferDesc').value || 'Fund transfer';
-        if(isNaN(a) || a <= 0) { showAlert('Enter valid amount', 'danger'); return; }
-        if(a > (chairmanData.balance || 0)) { showAlert('Insufficient balance!', 'danger'); return; }
-        
-        chairmanData.balance = (chairmanData.balance || 0) - a;
-        if (!chairmanData.history) chairmanData.history = [];
-        chairmanData.history.unshift({ date: new Date().toLocaleString(), type: 'Transfer', amount: a, desc: `To ${c}: ${d}` });
-        
-        if (!councilsData[c]) councilsData[c] = { balance: 0, history: [] };
-        if (!councilsData[c].history) councilsData[c].history = [];
-        councilsData[c].balance = (councilsData[c].balance || 0) + a;
-        councilsData[c].history.unshift({ date: new Date().toLocaleString(), type: 'Received', amount: a, desc: `Received from Chairman: ${d}` });
-        
-        saveChairman();
-        saveCouncils();
-        updateChairmanUI();
-        if(currentCouncil === c) updateCouncilUI();
-        document.getElementById('closeTransfer').click();
-        document.getElementById('transferAmount').value = '';
-        document.getElementById('transferDesc').value = '';
-        showAlert('PKR ' + a.toLocaleString() + ' transferred!', 'success');
-    }
-    
-    function addExpense() {
-        let cat = document.getElementById('expenseCategory').value;
-        let a = parseFloat(document.getElementById('expenseAmount').value);
-        let d = document.getElementById('expenseDesc').value || '';
-        if(!cat) { showAlert('Enter category', 'danger'); return; }
-        if(isNaN(a) || a <= 0) { showAlert('Enter valid amount', 'danger'); return; }
-        if(a > (chairmanData.balance || 0)) { showAlert('Insufficient balance!', 'danger'); return; }
-        
-        chairmanData.balance = (chairmanData.balance || 0) - a;
-        if (!chairmanData.history) chairmanData.history = [];
-        chairmanData.history.unshift({ date: new Date().toLocaleString(), type: 'Expense', amount: a, desc: `${cat}: ${d}` });
-        saveChairman();
-        updateChairmanUI();
-        document.getElementById('closeExpense').click();
-        document.getElementById('expenseCategory').value = '';
-        document.getElementById('expenseAmount').value = '';
-        document.getElementById('expenseDesc').value = '';
-        showAlert('Expense added!', 'success');
-    }
-    
-    function distribute() {
-        let f = parseInt(document.getElementById('familiesCount').value);
-        let pf = parseFloat(document.getElementById('amountPerFamily').value);
-        let d = document.getElementById('distributionDesc').value || 'Aid distribution';
-        let t = f * pf;
-        if(isNaN(f) || f <= 0) { showAlert('Enter valid families', 'danger'); return; }
-        if(isNaN(pf) || pf <= 0) { showAlert('Enter valid amount', 'danger'); return; }
-        if(t > (councilsData[currentCouncil]?.balance || 0)) { showAlert('Insufficient balance!', 'danger'); return; }
-        
-        if (!councilsData[currentCouncil]) councilsData[currentCouncil] = { balance: 0, history: [] };
-        if (!councilsData[currentCouncil].history) councilsData[currentCouncil].history = [];
-        councilsData[currentCouncil].balance = (councilsData[currentCouncil].balance || 0) - t;
-        councilsData[currentCouncil].history.unshift({ date: new Date().toLocaleString(), type: 'Distribution', amount: t, families: f, desc: d + ` (PKR ${pf}/family)` });
-        saveCouncils();
-        updateCouncilUI();
-        document.getElementById('closeDistribution').click();
-        document.getElementById('familiesCount').value = '';
-        document.getElementById('amountPerFamily').value = '';
-        document.getElementById('distributionDesc').value = '';
-        showAlert('PKR ' + t.toLocaleString() + ' distributed!', 'success');
-    }
-    
-    // ========== SETTINGS ==========
-    function changeName() {
-        let n = document.getElementById('newName').value;
-        if(!n) { showAlert('Enter name', 'danger'); return; }
-        if(currentUser === 'chairman') displayNames.chairman = n;
-        else { displayNames[currentCouncil] = n; document.getElementById('councilName').innerText = n; }
-        saveDisplayNames();
-        showAlert('Name changed!', 'success');
-        document.getElementById('closeName').click();
-    }
-    
-    function changePassword() {
-        let np = document.getElementById('newPassword').value;
-        let cp = document.getElementById('confirmPassword').value;
-        if(!np) { showAlert('Enter password', 'danger'); return; }
-        if(np !== cp) { showAlert('Passwords mismatch', 'danger'); return; }
-        if(currentUser === 'chairman') credentials.chairman = np;
-        else credentials[currentCouncil] = np;
-        saveCredentials();
-        showAlert('Password changed!', 'success');
-        document.getElementById('closePass').click();
-        document.getElementById('newPassword').value = '';
-        document.getElementById('confirmPassword').value = '';
-    }
-    
-    function clearHistory() {
-        if(confirm('Clear history? Balance remains.')) {
-            if(currentUser === 'chairman') { chairmanData.history = []; saveChairman(); updateChairmanUI(); }
-            else { councilsData[currentCouncil].history = []; saveCouncils(); updateCouncilUI(); }
-            showAlert('History cleared!', 'success');
-        }
-    }
-    
-    function resetWallet() {
-        if(confirm('FULL RESET! Cannot undo!')) {
-            if(currentUser === 'chairman') { chairmanData = { balance: 0, history: [] }; saveChairman(); updateChairmanUI(); }
-            else { councilsData[currentCouncil] = { balance: 0, history: [] }; saveCouncils(); updateCouncilUI(); }
-            showAlert('Wallet reset!', 'warning');
-        }
-    }
-    
-    function shareReport() {
-        let msg = currentUser === 'chairman' ? `Akhowaat - Chairman\n💰 Balance: PKR ${(chairmanData.balance || 0).toLocaleString()}` : `Akhowaat - ${displayNames[currentCouncil]}\n💰 Balance: PKR ${(councilsData[currentCouncil]?.balance || 0).toLocaleString()}`;
-        window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
-    }
-    
-    // ========== MODAL ==========
-    function openModal(id) { document.getElementById(id).style.display = 'flex'; }
-    function closeModal(id) { document.getElementById(id).style.display = 'none'; }
-    
-    // ========== NAVIGATION ==========
-    function setupNavigation(isChairman) {
-        let navItems = document.querySelectorAll(isChairman ? '#chairmanDashboard .nav-item' : '#councilDashboard .nav-item');
-        let pages = { home: isChairman ? document.getElementById('chairmanHome') : document.getElementById('councilHome'), stats: isChairman ? document.getElementById('chairmanStats') : document.getElementById('councilStatsPage'), settings: isChairman ? document.getElementById('chairmanSettings') : document.getElementById('councilSettingsPage') };
-        navItems.forEach(item => {
-            item.onclick = () => {
-                navItems.forEach(n => n.classList.remove('active'));
-                item.classList.add('active');
-                let pn = item.dataset.page;
-                Object.values(pages).forEach(p => { if(p) p.classList.remove('active-page'); });
-                if(pages[pn]) pages[pn].classList.add('active-page');
-            };
-        });
-    }
-    
-    // ========== LOGIN/LOGOUT ==========
-    function login() {
-        let role = document.getElementById('roleSelect').value;
-        let pwd = document.getElementById('password').value;
-        let err = document.getElementById('loginError');
-        if(credentials[role] === pwd) {
-            currentUser = role;
-            if(role === 'chairman') {
-                document.getElementById('loginPage').style.display = 'none';
-                document.getElementById('chairmanDashboard').style.display = 'block';
-                updateChairmanUI();
-                setupNavigation(true);
+            document.getElementById('totalDeposit').innerHTML = 'PKR ' + td.toLocaleString();
+            document.getElementById('totalTransfer').innerHTML = 'PKR ' + tt.toLocaleString();
+            document.getElementById('totalExpense').innerHTML = 'PKR ' + te.toLocaleString();
+            document.getElementById('statDeposit').innerHTML = 'PKR ' + td.toLocaleString();
+            document.getElementById('statTransfer').innerHTML = 'PKR ' + tt.toLocaleString();
+            document.getElementById('statExpense').innerHTML = 'PKR ' + te.toLocaleString();
+            document.getElementById('statBalance').innerHTML = 'PKR ' + (chairmanData.balance || 0).toLocaleString();
+            
+            let html = '';
+            if (chairmanData.history && chairmanData.history.length > 0) {
+                for(let h of chairmanData.history.slice(0,20)) {
+                    let isPos = h.amount > 0;
+                    html += `<div class="transaction-item"><div class="transaction-left"><div class="transaction-icon">${isPos ? '💰' : (h.type === 'Transfer' ? '🔄' : '📝')}</div><div class="transaction-info"><div class="transaction-type">${h.type}</div><div class="transaction-date">${h.date}</div></div></div><div class="transaction-amount ${isPos ? 'amount-positive' : 'amount-negative'}">${isPos ? '+' : '-'} PKR ${Math.abs(h.amount).toLocaleString()}</div></div>`;
+                }
             } else {
-                currentCouncil = role;
-                document.getElementById('loginPage').style.display = 'none';
-                document.getElementById('councilDashboard').style.display = 'block';
-                updateCouncilUI();
-                setupNavigation(false);
+                html = '<div class="empty-state">No transactions yet</div>';
             }
-            document.getElementById('password').value = '';
-        } else {
-            err.style.display = 'block';
-            err.innerHTML = 'Invalid password! Use: chairman123 / council123';
-            setTimeout(() => err.style.display = 'none', 3000);
+            document.getElementById('chairmanHistory').innerHTML = html;
         }
+        
+        function updateCouncilUI() {
+            let data = councilsData[currentCouncil] || { balance: 0, history: [] };
+            document.getElementById('councilBalance').innerHTML = 'PKR ' + (data.balance || 0).toLocaleString();
+            document.getElementById('councilName').innerHTML = displayNames[currentCouncil] || currentCouncil;
+            let tr=0, tf=0;
+            if (data.history) {
+                for(let h of data.history) {
+                    if(h.type === 'Received' || h.type === 'Distribution') {
+                        tr += h.amount;
+                        tf += (h.families || 0);
+                    }
+                }
+            }
+            document.getElementById('totalReceived').innerHTML = 'PKR ' + tr.toLocaleString();
+            document.getElementById('totalFamilies').innerHTML = tf;
+            document.getElementById('totalDistributions').innerHTML = data.history ? data.history.length : 0;
+            document.getElementById('cStatReceived').innerHTML = 'PKR ' + tr.toLocaleString();
+            document.getElementById('cStatFamilies').innerHTML = tf;
+            document.getElementById('cStatTransactions').innerHTML = data.history ? data.history.length : 0;
+            document.getElementById('cStatBalance').innerHTML = 'PKR ' + (data.balance || 0).toLocaleString();
+            
+            let html = '';
+            if (data.history && data.history.length > 0) {
+                for(let h of data.history.slice(0,20)) {
+                    html += `<div class="transaction-item"><div class="transaction-left"><div class="transaction-icon">🤝</div><div class="transaction-info"><div class="transaction-type">${h.type}</div><div class="transaction-date">${h.date}</div>${h.families ? `<div style="font-size:10px;color:#888;">${h.families} families</div>` : ''}</div></div><div class="transaction-amount amount-negative">-PKR ${h.amount.toLocaleString()}</div></div>`;
+                }
+            } else {
+                html = '<div class="empty-state">No distributions yet</div>';
+            }
+            document.getElementById('councilHistory').innerHTML = html;
+        }
+        
+        // Actions
+        function deposit() {
+            let a = parseFloat(document.getElementById('depositAmount').value);
+            let d = document.getElementById('depositDesc').value || 'Manual deposit';
+            if(isNaN(a) || a <= 0) { showAlert('Enter valid amount', 'danger'); return; }
+            chairmanData.balance = (chairmanData.balance || 0) + a;
+            chairmanData.history.unshift({ date: new Date().toLocaleString(), type: 'Deposit', amount: a, desc: d });
+            saveChairman();
+            updateChairmanUI();
+            document.getElementById('closeDeposit').click();
+            document.getElementById('depositAmount').value = '';
+            document.getElementById('depositDesc').value = '';
+            showAlert('PKR ' + a.toLocaleString() + ' deposited!', 'success');
+        }
+        
+        function transfer() {
+            let c = document.getElementById('transferCouncil').value;
+            let a = parseFloat(document.getElementById('transferAmount').value);
+            let d = document.getElementById('transferDesc').value || 'Fund transfer';
+            if(isNaN(a) || a <= 0) { showAlert('Enter valid amount', 'danger'); return; }
+            if(a > (chairmanData.balance || 0)) { showAlert('Insufficient balance!', 'danger'); return; }
+            
+            chairmanData.balance = (chairmanData.balance || 0) - a;
+            chairmanData.history.unshift({ date: new Date().toLocaleString(), type: 'Transfer', amount: a, desc: `To ${c}: ${d}` });
+            
+            if (!councilsData[c]) councilsData[c] = { balance: 0, history: [] };
+            councilsData[c].balance = (councilsData[c].balance || 0) + a;
+            councilsData[c].history.unshift({ date: new Date().toLocaleString(), type: 'Received', amount: a, desc: `Received from Chairman: ${d}` });
+            
+            saveChairman();
+            saveCouncils();
+            updateChairmanUI();
+            if(currentCouncil === c) updateCouncilUI();
+            document.getElementById('closeTransfer').click();
+            document.getElementById('transferAmount').value = '';
+            document.getElementById('transferDesc').value = '';
+            showAlert('PKR ' + a.toLocaleString() + ' transferred!', 'success');
+        }
+        
+        function addExpense() {
+            let cat = document.getElementById('expenseCategory').value;
+            let a = parseFloat(document.getElementById('expenseAmount').value);
+            let d = document.getElementById('expenseDesc').value || '';
+            if(!cat) { showAlert('Enter category', 'danger'); return; }
+            if(isNaN(a) || a <= 0) { showAlert('Enter valid amount', 'danger'); return; }
+            if(a > (chairmanData.balance || 0)) { showAlert('Insufficient balance!', 'danger'); return; }
+            
+            chairmanData.balance = (chairmanData.balance || 0) - a;
+            chairmanData.history.unshift({ date: new Date().toLocaleString(), type: 'Expense', amount: a, desc: `${cat}: ${d}` });
+            saveChairman();
+            updateChairmanUI();
+            document.getElementById('closeExpense').click();
+            document.getElementById('expenseCategory').value = '';
+            document.getElementById('expenseAmount').value = '';
+            document.getElementById('expenseDesc').value = '';
+            showAlert('Expense added!', 'success');
+        }
+        
+        function distribute() {
+            let f = parseInt(document.getElementById('familiesCount').value);
+            let pf = parseFloat(document.getElementById('amountPerFamily').value);
+            let d = document.getElementById('distributionDesc').value || 'Aid distribution';
+            let t = f * pf;
+            if(isNaN(f) || f <= 0) { showAlert('Enter valid families', 'danger'); return; }
+            if(isNaN(pf) || pf <= 0) { showAlert('Enter valid amount', 'danger'); return; }
+            if(t > (councilsData[currentCouncil]?.balance || 0)) { showAlert('Insufficient balance!', 'danger'); return; }
+            
+            if (!councilsData[currentCouncil]) councilsData[currentCouncil] = { balance: 0, history: [] };
+            councilsData[currentCouncil].balance = (councilsData[currentCouncil].balance || 0) - t;
+            councilsData[currentCouncil].history.unshift({ date: new Date().toLocaleString(), type: 'Distribution', amount: t, families: f, desc: d + ` (PKR ${pf}/family)` });
+            saveCouncils();
+            updateCouncilUI();
+            document.getElementById('closeDistribution').click();
+            document.getElementById('familiesCount').value = '';
+            document.getElementById('amountPerFamily').value = '';
+            document.getElementById('distributionDesc').value = '';
+            showAlert('PKR ' + t.toLocaleString() + ' distributed!', 'success');
+        }
+        
+        // Settings
+        function changeName() {
+            let n = document.getElementById('newName').value;
+            if(!n) { showAlert('Enter name', 'danger'); return; }
+            if(currentUser === 'chairman') displayNames.chairman = n;
+            else { displayNames[currentCouncil] = n; document.getElementById('councilName').innerText = n; }
+            saveDisplayNames();
+            showAlert('Name changed!', 'success');
+            document.getElementById('closeName').click();
+        }
+        
+        function changePassword() {
+            let np = document.getElementById('newPassword').value;
+            let cp = document.getElementById('confirmPassword').value;
+            if(!np) { showAlert('Enter password', 'danger'); return; }
+            if(np !== cp) { showAlert('Passwords mismatch', 'danger'); return; }
+            if(currentUser === 'chairman') credentials.chairman = np;
+            else credentials[currentCouncil] = np;
+            saveCredentials();
+            showAlert('Password changed!', 'success');
+            document.getElementById('closePass').click();
+            document.getElementById('newPassword').value = '';
+            document.getElementById('confirmPassword').value = '';
+        }
+        
+        function clearHistory() {
+            if(confirm('Clear history? Balance remains.')) {
+                if(currentUser === 'chairman') { chairmanData.history = []; saveChairman(); updateChairmanUI(); }
+                else { councilsData[currentCouncil].history = []; saveCouncils(); updateCouncilUI(); }
+                showAlert('History cleared!', 'success');
+            }
+        }
+        
+        function resetWallet() {
+            if(confirm('FULL RESET! Cannot undo!')) {
+                if(currentUser === 'chairman') { chairmanData = { balance: 0, history: [] }; saveChairman(); updateChairmanUI(); }
+                else { councilsData[currentCouncil] = { balance: 0, history: [] }; saveCouncils(); updateCouncilUI(); }
+                showAlert('Wallet reset!', 'warning');
+            }
+        }
+        
+        function shareReport() {
+            let msg = currentUser === 'chairman' ? `Akhowaat - Chairman\n💰 Balance: PKR ${(chairmanData.balance || 0).toLocaleString()}` : `Akhowaat - ${displayNames[currentCouncil]}\n💰 Balance: PKR ${(councilsData[currentCouncil]?.balance || 0).toLocaleString()}`;
+            window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+        
+        function openModal(id) { document.getElementById(id).style.display = 'flex'; }
+        function closeModal(id) { document.getElementById(id).style.display = 'none'; }
+        
+        function setupNavigation(isChairman) {
+            let navItems = document.querySelectorAll(isChairman ? '#chairmanDashboard .nav-item' : '#councilDashboard .nav-item');
+            let pages = { home: isChairman ? document.getElementById('chairmanHome') : document.getElementById('councilHome'), stats: isChairman ? document.getElementById('chairmanStats') : document.getElementById('councilStatsPage'), settings: isChairman ? document.getElementById('chairmanSettings') : document.getElementById('councilSettingsPage') };
+            navItems.forEach(item => {
+                item.onclick = () => {
+                    navItems.forEach(n => n.classList.remove('active'));
+                    item.classList.add('active');
+                    let pn = item.dataset.page;
+                    Object.values(pages).forEach(p => { if(p) p.classList.remove('active-page'); });
+                    if(pages[pn]) pages[pn].classList.add('active-page');
+                };
+            });
+        }
+        
+        function login() {
+            let role = document.getElementById('roleSelect').value;
+            let pwd = document.getElementById('password').value;
+            let err = document.getElementById('loginError');
+            if(credentials[role] === pwd) {
+                currentUser = role;
+                if(role === 'chairman') {
+                    document.getElementById('loginPage').style.display = 'none';
+                    document.getElementById('chairmanDashboard').style.display = 'block';
+                    updateChairmanUI();
+                    setupNavigation(true);
+                } else {
+                    currentCouncil = role;
+                    document.getElementById('loginPage').style.display = 'none';
+                    document.getElementById('councilDashboard').style.display = 'block';
+                    updateCouncilUI();
+                    setupNavigation(false);
+                }
+                document.getElementById('password').value = '';
+            } else {
+                err.style.display = 'block';
+                err.innerHTML = 'Invalid password! Use: chairman123 / council123';
+                setTimeout(() => err.style.display = 'none', 3000);
+            }
+        }
+        
+        function logout() {
+            currentUser = null;
+            currentCouncil = null;
+            document.getElementById('loginPage').style.display = 'flex';
+            document.getElementById('chairmanDashboard').style.display = 'none';
+            document.getElementById('councilDashboard').style.display = 'none';
+        }
+        
+        // Event Listeners
+        document.getElementById('loginBtn').onclick = login;
+        document.getElementById('chairmanLogout').onclick = logout;
+        document.getElementById('councilLogout').onclick = logout;
+        
+        document.getElementById('openDeposit').onclick = () => openModal('depositModal');
+        document.getElementById('openTransfer').onclick = () => openModal('transferModal');
+        document.getElementById('openExpense').onclick = () => openModal('expenseModal');
+        document.getElementById('openDistribution').onclick = () => openModal('distributionModal');
+        
+        document.getElementById('openStats').onclick = () => document.querySelector('#chairmanDashboard .nav-item[data-page="stats"]').click();
+        document.getElementById('openCouncilStats').onclick = () => document.querySelector('#councilDashboard .nav-item[data-page="stats"]').click();
+        document.getElementById('openCouncilSettings').onclick = () => document.querySelector('#councilDashboard .nav-item[data-page="settings"]').click();
+        
+        document.getElementById('depositBtn').onclick = deposit;
+        document.getElementById('closeDeposit').onclick = () => closeModal('depositModal');
+        document.getElementById('transferBtn').onclick = transfer;
+        document.getElementById('closeTransfer').onclick = () => closeModal('transferModal');
+        document.getElementById('expenseBtn').onclick = addExpense;
+        document.getElementById('closeExpense').onclick = () => closeModal('expenseModal');
+        document.getElementById('distributeBtn').onclick = distribute;
+        document.getElementById('closeDistribution').onclick = () => closeModal('distributionModal');
+        
+        document.getElementById('shareBtn').onclick = shareReport;
+        document.getElementById('councilShareBtn').onclick = shareReport;
+        
+        document.getElementById('changeNameBtn').onclick = () => openModal('changeNameModal');
+        document.getElementById('changePasswordBtn').onclick = () => openModal('changePasswordModal');
+        document.getElementById('clearHistoryBtn').onclick = clearHistory;
+        document.getElementById('resetWalletBtn').onclick = resetWallet;
+        
+        document.getElementById('councilChangeNameBtn').onclick = () => openModal('changeNameModal');
+        document.getElementById('councilChangePasswordBtn').onclick = () => openModal('changePasswordModal');
+        document.getElementById('councilClearHistoryBtn').onclick = clearHistory;
+        document.getElementById('councilResetWalletBtn').onclick = resetWallet;
+        
+        document.getElementById('saveName').onclick = changeName;
+        document.getElementById('closeName').onclick = () => closeModal('changeNameModal');
+        document.getElementById('savePass').onclick = changePassword;
+        document.getElementById('closePass').onclick = () => closeModal('changePasswordModal');
+        
+        document.getElementById('password').addEventListener('keypress', (e) => { if(e.key === 'Enter') login(); });
+        
+        // Initialize
+        loadFromFirebase();
+        setupRealtimeListeners();
+        console.log("Firebase Live Sync Active!");
     }
-    
-    function logout() {
-        currentUser = null;
-        currentCouncil = null;
-        document.getElementById('loginPage').style.display = 'flex';
-        document.getElementById('chairmanDashboard').style.display = 'none';
-        document.getElementById('councilDashboard').style.display = 'none';
-    }
-    
-    // ========== EVENT LISTENERS ==========
-    document.getElementById('loginBtn').onclick = login;
-    document.getElementById('chairmanLogout').onclick = logout;
-    document.getElementById('councilLogout').onclick = logout;
-    
-    document.getElementById('openDeposit').onclick = () => openModal('depositModal');
-    document.getElementById('openTransfer').onclick = () => openModal('transferModal');
-    document.getElementById('openExpense').onclick = () => openModal('expenseModal');
-    document.getElementById('openDistribution').onclick = () => openModal('distributionModal');
-    
-    document.getElementById('openStats').onclick = () => document.querySelector('#chairmanDashboard .nav-item[data-page="stats"]').click();
-    document.getElementById('openCouncilStats').onclick = () => document.querySelector('#councilDashboard .nav-item[data-page="stats"]').click();
-    document.getElementById('openCouncilSettings').onclick = () => document.querySelector('#councilDashboard .nav-item[data-page="settings"]').click();
-    
-    document.getElementById('depositBtn').onclick = deposit;
-    document.getElementById('closeDeposit').onclick = () => closeModal('depositModal');
-    document.getElementById('transferBtn').onclick = transfer;
-    document.getElementById('closeTransfer').onclick = () => closeModal('transferModal');
-    document.getElementById('expenseBtn').onclick = addExpense;
-    document.getElementById('closeExpense').onclick = () => closeModal('expenseModal');
-    document.getElementById('distributeBtn').onclick = distribute;
-    document.getElementById('closeDistribution').onclick = () => closeModal('distributionModal');
-    
-    document.getElementById('shareBtn').onclick = shareReport;
-    document.getElementById('councilShareBtn').onclick = shareReport;
-    
-    document.getElementById('changeNameBtn').onclick = () => openModal('changeNameModal');
-    document.getElementById('changePasswordBtn').onclick = () => openModal('changePasswordModal');
-    document.getElementById('clearHistoryBtn').onclick = clearHistory;
-    document.getElementById('resetWalletBtn').onclick = resetWallet;
-    
-    document.getElementById('councilChangeNameBtn').onclick = () => openModal('changeNameModal');
-    document.getElementById('councilChangePasswordBtn').onclick = () => openModal('changePasswordModal');
-    document.getElementById('councilClearHistoryBtn').onclick = clearHistory;
-    document.getElementById('councilResetWalletBtn').onclick = resetWallet;
-    
-    document.getElementById('saveName').onclick = changeName;
-    document.getElementById('closeName').onclick = () => closeModal('changeNameModal');
-    document.getElementById('savePass').onclick = changePassword;
-    document.getElementById('closePass').onclick = () => closeModal('changePasswordModal');
-    
-    document.getElementById('password').addEventListener('keypress', (e) => { if(e.key === 'Enter') login(); });
-    
-    // ========== INITIALIZE ==========
-    loadFromFirebase();
-    setupRealtimeListeners();
-    console.log("Firebase Live Sync Active!");
 </script>
 </body>
 </html>
